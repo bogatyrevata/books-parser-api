@@ -1,0 +1,13 @@
+python-dotenv
+sqlalchemy 
+psycopg2-binary
+alembic
+loguru
+playwright
+pytest
+pytest-cov
+pytest-mock
+pydantic
+fastapi 
+uvicorn
+httpx 

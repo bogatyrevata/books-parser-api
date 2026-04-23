@@ -1,0 +1,31 @@
+__pycache__/
+.DS_Store
+.vscode/
+.idea/
+
+# Виртуальное окружение
+.venv/
+venv/
+
+# Кэш pytest
+.pytest_cache/
+
+# Скомпилированный байткод Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Переменные окружения (там пароли от БД!)
+.env
+
+# Логи парсера
+logs/
+
+# Результаты парсинга
+books.csv
+
+# Тестовая база данных
+test.db
+
+# Файл миграций Alembic
+migrations/versions/" >> .gitignore
