@@ -27,7 +27,7 @@
 
 3. Установка Playwright:
 ```bash
-python -m playwright install chromium
+   python -m playwright install chromium
 ```
 
 4. Настройка базы данных.

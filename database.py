@@ -29,3 +29,12 @@ class Category(Base):
 def get_engine():
     url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
     return create_engine(url)
+
+class User(Base):
+    __tablename__ = 'users'
+
+    id       = Column(Integer, primary_key=True)
+    username = Column(String, unique=True, nullable=False)
+    email    = Column(String, unique=True, nullable=False)
+    password = Column(String, nullable=False)  # хэш пароля
+    is_admin = Column(Boolean, default=False)

@@ -38,3 +38,21 @@ class BookSchema(BookBase):
     
     class Config:
         from_attributes = True
+
+class UserCreate(BaseModel):
+    username: str
+    email: str
+    password: str
+
+class UserSchema(BaseModel):
+    id: int
+    username: str
+    email: str
+    is_admin: bool
+
+    class Config:
+        from_attributes = True
+
+class TokenSchema(BaseModel):
+    access_token: str
+    token_type: str
