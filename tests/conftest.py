@@ -7,39 +7,21 @@ from fastapi.testclient import TestClient
 from database import Base
 from api.api import app, get_db
 
-# @pytest.fixture
-# def db_session():
-#     engine = create_engine("sqlite:///:memory:")
-#     Base.metadata.create_all(engine)
-#     with Session(engine) as session:
-#         yield session
-#     Base.metadata.drop_all(engine)
+TEST_DB = "test.db"
 
-# tests/conftest.py
-
-TEST_DB = "test.db" # Файл для тестовой базы данных
-
-engine = create_engine( # создаём движок для SQLite
-    f"sqlite:///{TEST_DB}",# используем файл, а не :memory: чтобы видеть его в процессе отладки
-    connect_args={"check_same_thread": False} # нужно для SQLite, чтобы разрешить доступ из разных потоков (FastAPI может работать в многопоточном режиме
+engine = create_engine(
+    f"sqlite:///{TEST_DB}",
+    connect_args={"check_same_thread": False}
 )
 
-TestingSessionLocal = sessionmaker(bind=engine) # создаём фабрику сессий, которая будет использовать наш тестовый движок
+TestingSessionLocal = sessionmaker(bind=engine)
 
-# Фикстура для настройки тестовой базы данных
 @pytest.fixture(autouse=True)
 def setup_db():
     Base.metadata.create_all(engine)
     yield
     Base.metadata.drop_all(engine)
 
-# Фикстура для получения сессии базы данных в тестах
-@pytest.fixture
-def db_session():
-    with TestingSessionLocal() as session:
-        yield session
-
-# Фикстура для получения клиента API, который использует тестовую базу данных
 @pytest.fixture
 def client():
     def override_get_db():
@@ -47,5 +29,24 @@ def client():
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)# создаём тестового клиента FastAPI, который будет использовать нашу тестовую базу данных
+    yield TestClient(app)
     app.dependency_overrides.clear()
+
+@pytest.fixture
+def admin_client(client):
+    # регистрируем первого пользователя — он станет админом
+    client.post("/auth/register", json={
+        "username": "admin",
+        "email": "admin@test.com",
+        "password": "12345"
+    })
+    # логинимся и получаем токен
+    response = client.post("/auth/login", data={
+        "username": "admin",
+        "password": "12345"
+    })
+    token = response.json()["access_token"]
+
+    # добавляем токен в заголовки клиента
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client

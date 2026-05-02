@@ -1,11 +1,15 @@
 # api/dependencies.py
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 from database import get_engine
 
-# Dependency для получения сессии базы данных. 
+# создаём engine один раз при старте
+engine = get_engine()
+SessionLocal = sessionmaker(bind=engine)
+
 def get_db():
-    db = Session(bind=get_engine())
+    db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
