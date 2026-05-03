@@ -1,15 +1,11 @@
 # api/dependencies.py
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from database import get_engine
 
-# создаём engine один раз при старте
+
 engine = get_engine()
-SessionLocal = sessionmaker(bind=engine)
+AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        yield session

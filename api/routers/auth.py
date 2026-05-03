@@ -1,27 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from database import User
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from database import User, RefreshToken
 from api.dependencies import get_db
 from api.schemas import UserCreate, UserSchema, TokenSchema
-from api.auth import hash_password, verify_password, create_access_token, get_current_user, create_refresh_token, RefreshToken
+from api.auth import hash_password, verify_password, create_access_token, get_current_user, create_refresh_token
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import datetime
 
 auth_router = APIRouter(
-    prefix="/auth",  # все роуты начинаются с /auth
-    tags=["auth"]    # группировка в Swagger
+    prefix="/auth",
+    tags=["auth"]
 )
 
-# регистрация нового пользователя. Первый пользователь становится админом, остальные — обычными пользователями
-
 @auth_router.post("/register", response_model=UserSchema, status_code=201)
-def register(user: UserCreate, db: Session = Depends(get_db)):
-    # проверяем что такого пользователя нет
-    if db.query(User).filter(User.username == user.username).first():
+async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.username == user.username))
+    if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Пользователь уже существует")
 
-    # первый пользователь становится админом
-    is_first = db.query(User).count() == 0
+    result = await db.execute(select(User))
+    is_first = len(result.scalars().all()) == 0
 
     new_user = User(
         username=user.username,
@@ -30,20 +29,19 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         is_admin=is_first
     )
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    await db.commit()
+    await db.refresh(new_user)
     return new_user
 
-
 @auth_router.post("/login", response_model=TokenSchema)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == form_data.username).first()
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.username == form_data.username))
+    user = result.scalar_one_or_none()
     if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
 
     access_token = create_access_token({"sub": user.username})
-    refresh_token = create_refresh_token(user.id, db)
-
+    refresh_token = await create_refresh_token(user.id, db)
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -51,26 +49,27 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     }
 
 @auth_router.post("/refresh", response_model=TokenSchema)
-def refresh(refresh_token: str, db: Session = Depends(get_db)):
-    # ищем токен в базе
-    token_obj = db.query(RefreshToken).filter(RefreshToken.token == refresh_token).first()
+async def refresh(refresh_token: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(RefreshToken).where(RefreshToken.token == refresh_token))
+    token_obj = result.scalar_one_or_none()
 
     if not token_obj:
         raise HTTPException(status_code=401, detail="Невалидный refresh токен")
 
     if token_obj.expires_at < datetime.utcnow():
-        db.delete(token_obj)
-        db.commit()
+        await db.delete(token_obj)
+        await db.commit()
         raise HTTPException(status_code=401, detail="Refresh токен истёк")
 
-    # создаём новые токены
-    user = token_obj.user
-    new_access_token = create_access_token({"sub": user.username})
-    new_refresh_token = create_refresh_token(user.id, db)
+    # загружаем пользователя отдельным запросом
+    result = await db.execute(select(User).where(User.id == token_obj.user_id))
+    user = result.scalar_one_or_none()
 
-    # удаляем старый refresh токен
-    db.delete(token_obj)
-    db.commit()
+    new_access_token = create_access_token({"sub": user.username})
+    new_refresh_token = await create_refresh_token(user.id, db)
+
+    await db.delete(token_obj)
+    await db.commit()
 
     return {
         "access_token": new_access_token,
@@ -78,15 +77,14 @@ def refresh(refresh_token: str, db: Session = Depends(get_db)):
         "token_type": "bearer"
     }
 
-
 @auth_router.post("/logout", status_code=204)
-def logout(refresh_token: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    token_obj = db.query(RefreshToken).filter(RefreshToken.token == refresh_token).first()
+async def logout(refresh_token: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(select(RefreshToken).where(RefreshToken.token == refresh_token))
+    token_obj = result.scalar_one_or_none()
     if token_obj:
-        db.delete(token_obj)
-        db.commit()
-
+        await db.delete(token_obj)
+        await db.commit()
 
 @auth_router.get("/me", response_model=UserSchema)
-def get_me(current_user: User = Depends(get_current_user)):
+async def get_me(current_user: User = Depends(get_current_user)):
     return current_user

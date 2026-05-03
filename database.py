@@ -1,14 +1,19 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, ForeignKey, DateTime
-from sqlalchemy.orm import relationship
-from sqlalchemy.orm import declarative_base, Session
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime
+from dotenv import load_dotenv
 import os
 
+load_dotenv()
 
 Base = declarative_base()
 
-def get_engine():
-    url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
-    return create_engine(url)
+class Category(Base):
+    __tablename__ = 'categories'
+    id    = Column(Integer, primary_key=True)
+    name  = Column(String, unique=True, nullable=False)
+    books = relationship('Book', back_populates='category')
+
 class Book(Base):
     __tablename__ = 'books'
 
@@ -22,13 +27,6 @@ class Book(Base):
 
     # relationship для удобного доступа: book.category
     category = relationship('Category', back_populates='books')  # <-- новое
-
-class Category(Base):
-    __tablename__ = 'categories'
-    
-    id   = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)
-    books = relationship('Book', back_populates='category')  # <-- обратная сторона
 
 class User(Base):
     __tablename__ = 'users'
@@ -47,3 +45,9 @@ class RefreshToken(Base):
     user_id    = Column(Integer, ForeignKey('users.id'), nullable=False)
     expires_at = Column(DateTime, nullable=False)
     user       = relationship('User', backref='refresh_tokens')
+
+
+def get_engine():
+    # postgresql+asyncpg вместо postgresql+psycopg2
+    url = f"postgresql+asyncpg://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+    return create_async_engine(url)
