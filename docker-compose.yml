@@ -1,0 +1,70 @@
+services:
+  db:
+    image: postgres:15
+    container_name: books-db
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./logs/db:/var/log/postgresql  # логи PostgreSQL
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: books-api
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs/api:/app/logs  # логи uvicorn и fastapi
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../books-frontend
+      dockerfile: Dockerfile
+    container_name: books-frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./logs/nginx:/var/log/nginx  # логи nginx
+    depends_on:
+      - api
+
+  parser:
+    build:
+      context: .
+      dockerfile: Dockerfile.parser
+    container_name: books-parser
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+    volumes:
+      - ./logs/parser:/app/logs  # логи playwright и парсера
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - parser
+    restart: "no"  # не перезапускать парсер автоматически
+
+volumes:
+  postgres_data:

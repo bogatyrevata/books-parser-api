@@ -2,6 +2,7 @@ from pydantic import BaseModel
 
 class CategoryBase(BaseModel):
     name: str
+    url: str | None = None  
 
 class CategoryCreate(CategoryBase):
     pass

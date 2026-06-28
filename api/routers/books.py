@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from database import Book, User
 from api.dependencies import get_db
 from api.schemas import BookSchema, BookCreate, BookUpdate
@@ -59,13 +59,17 @@ async def patch_book(book_id: int, book: BookUpdate, db: AsyncSession = Depends(
     if not existing_book:
         raise HTTPException(status_code=404, detail="Book not found")
     
-    # exclude_unset=True — берём только те поля которые пришли в запросе
     for key, value in book.model_dump(exclude_unset=True).items():
         setattr(existing_book, key, value)
     
     await db.commit()
-    await db.refresh(existing_book)
-    return existing_book
+
+    # ← заменяем refresh на запрос с joinedload
+    result = await db.execute(
+        select(Book).options(joinedload(Book.category)).where(Book.id == book_id)
+    )
+    updated_book = result.scalar_one()
+    return updated_book
 
 
 @books_router.delete("/{book_id}", status_code=204)
