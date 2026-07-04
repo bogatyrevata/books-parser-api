@@ -74,23 +74,18 @@ from database import Base
 
 load_dotenv()
 
-# Подставляем URL из .env
 config = context.config
 
 DB_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
 config.set_main_option('sqlalchemy.url', DB_URL)
 
-# Замените None на:
 target_metadata = Base.metadata
 ```
 
 ### 6. Создание и применение миграций
 
 ```bash
-# Первая миграция (модель уже должна быть в database.py)
 alembic revision --autogenerate -m "create books table"
-
-# Применение миграций
 alembic upgrade head
 ```
 
@@ -120,11 +115,6 @@ pytest tests/ --cov=src --cov-report=term-missing
 uvicorn api.api:app --reload
 ```
 
-Протестировать API:
-```bash
-pytest tests/test_api.py -v
-```
-
 Открыть в браузере: http://localhost:8000/docs
 
 ### 10. Запуск Frontend
@@ -137,6 +127,8 @@ npm install
 npm run dev
 ```
 
+Фронтенд доступен на http://localhost:5173 — vite автоматически проксирует `/api/*` на `localhost:8000`.
+
 ---
 
 ## 🐳 Структура проекта
@@ -147,22 +139,31 @@ books-parser-api/              # бэкенд репозиторий
 ├── parser/                    # Playwright парсер
 ├── tests/                     # тесты
 ├── migrations/                # миграции Alembic
-├── Dockerfile.api             # образ для API
+├── Dockerfile.api             # образ для API (включает Playwright + Chromium)
 ├── Dockerfile.parser          # образ для парсера
-├── docker-compose.yml         # конфиг для запуска контейнеров
+├── docker-compose.yml         # базовый конфиг (прод — порты закрыты)
+├── docker-compose.override.yml  # локальная разработка (порты открыты, авто)
 ├── requirements.txt           # зависимости Python
 ├── .env                       # переменные окружения (НЕ в git!)
 └── README.md
 
 books-frontend/                # фронтенд репозиторий
 ├── src/
+├── nginx.conf                 # конфиг nginx внутри контейнера
 ├── Dockerfile
 └── package.json
+
+nginx-proxy/                   # отдельный nginx-контейнер — точка входа для всех проектов
+├── conf.d/
+│   └── books.conf             # virtual host для books.bogatyrevata.com
+├── nginx.conf                 # главный конфиг
+├── Dockerfile
+└── docker-compose.yml
 ```
 
 ---
 
-## 🚀 Запуск с Docker (рекомендуется)
+## 🚀 Запуск с Docker (локально)
 
 ### ✅ Требования
 
@@ -184,19 +185,18 @@ LIMIT_BOOKS=5
 CATEGORY_URL=http://books.toscrape.com/catalogue/category/books_1/index.html
 ```
 
----
-
-## 🎯 Запуск (первый раз)
-
-Если контейнеры запускаются **в первый раз**:
+### 🎯 Запуск (первый раз)
 
 ```bash
 cd books-parser-api
 
-# Запустить всё (API, база данных, фронтенд)
+# Запустить все контейнеры
 docker compose up -d
 
-# Проверить, всё ли запустилось
+# Применить миграции
+docker compose exec api alembic upgrade head
+
+# Проверить статус
 docker compose ps
 ```
 
@@ -210,43 +210,68 @@ books-frontend    Up
 
 **Откройте в браузере:**
 - 🖥️ Фронтенд: http://localhost:3000
-- 📡 API: http://localhost:8000
 - 📖 API docs: http://localhost:8000/docs
+
+> Порты 3000 и 8000 открыты только локально через `docker-compose.override.yml`,
+> который Docker Compose подхватывает автоматически. На проде эти порты закрыты.
 
 ---
 
-## 🔄 Последующие запуски (контейнеры уже созданы)
+## 🌐 Запуск на сервере (прод)
 
-Если вернулись через время и контейнеры уже существуют:
+На сервере контейнеры запускаются в два шага — сначала проект, потом nginx-proxy.
+
+### Шаг 1: Запустить парсер книг
 
 ```bash
 cd books-parser-api
 
-# Просто запустить контейнеры
+# Запустить без override (порты наружу не торчат)
 docker compose up -d
 
-# Проверить статус
-docker compose ps
+# Применить миграции
+docker compose exec api alembic upgrade head
 ```
 
-Если контейнеры были остановлены (`docker compose down`), используйте ту же команду.
+### Шаг 2: Запустить nginx-proxy
+
+nginx-proxy — отдельный контейнер, который стоит перед всеми проектами.
+Он должен запускаться после того как books-parser-api уже поднят (чтобы сеть существовала).
+
+```bash
+cd nginx-proxy
+docker compose up -d
+```
+
+**Откройте в браузере:**
+- 🖥️ Фронтенд: https://books.bogatyrevata.com
+- 📖 API docs: https://books.bogatyrevata.com/api/docs
+
+---
+
+## 🔄 Последующие запуски
+
+```bash
+cd books-parser-api
+docker compose up -d
+
+cd ../nginx-proxy
+docker compose up -d
+```
 
 ---
 
 ## 📊 Проверить статус системы
 
 ```bash
-# Посмотреть какие контейнеры запущены
+# Статус контейнеров парсера
 docker compose ps
 
-# Посмотреть логи API в реальном времени
+# Логи API в реальном времени
 docker compose logs -f api
 
-# Посмотреть логи базы данных
+# Логи базы данных
 docker compose logs -f db
-
-# Проверить, доступен ли API
-curl http://localhost:8000/docs
 ```
 
 ---
@@ -254,7 +279,7 @@ curl http://localhost:8000/docs
 ## 🧹 Остановка и очистка
 
 ```bash
-# Остановить все контейнеры (но данные БД сохранятся)
+# Остановить все контейнеры (данные БД сохранятся)
 docker compose down
 
 # Остановить и удалить ВСЕ данные (включая БД!)
@@ -267,14 +292,12 @@ docker compose down -v
 
 ## 🎮 Запуск парсера
 
-Парсер запускается отдельно по требованию:
+Парсинг категорий и книг доступен через кнопки в UI (только для администратора).
+
+Также можно запустить парсер вручную через терминал:
 
 ```bash
-# Запустить парсер один раз
 docker compose --profile parser run --rm parser
-
-# Запустить парсер и оставить контейнер
-docker compose --profile parser run parser
 ```
 
 ---
@@ -284,59 +307,65 @@ docker compose --profile parser run parser
 ### Контейнеры
 
 ```bash
-docker compose ps              # статус всех сервисов
-docker compose up -d           # запустить в фоне
-docker compose down            # остановить всё
-docker compose down -v         # остановить и удалить данные
+docker compose ps                        # статус всех сервисов
+docker compose up -d                     # запустить в фоне
+docker compose up -d --build             # пересобрать образы и запустить
+docker compose up -d --build api         # пересобрать только api
+docker compose down                      # остановить всё
+docker compose down -v                   # остановить и удалить данные
 ```
 
 ### Логи и отладка
 
 ```bash
-docker compose logs api        # логи API
-docker compose logs db         # логи БД
-docker compose logs -f api     # логи в реальном времени
-docker exec -it books-api bash # зайти внутрь контейнера API
+docker compose logs api                  # логи API
+docker compose logs db                   # логи БД
+docker compose logs -f api               # логи в реальном времени
+docker exec -it books-api bash           # зайти внутрь контейнера API
 docker exec -it books-db psql -U parser_user -d parser_books  # зайти в БД
 ```
 
-### Запуск команд внутри контейнера
+### Миграции
 
 ```bash
-# Запустить тесты
-docker exec -it books-api pytest tests/ -v
+# Применить все миграции
+docker compose exec api alembic upgrade head
 
-# Посмотреть файлы в контейнере
-docker exec -it books-api ls -la
-
-# Применить миграции
-docker exec -it books-api alembic upgrade head
+# Создать новую миграцию после изменения моделей
+docker compose exec api alembic revision --autogenerate -m "описание"
 ```
 
 ---
 
 ## ❌ Если что-то не работает
 
-### Ошибка: `port 8000 is already allocated`
+### 500 ошибка на парсинге
 
+Проверьте логи api:
 ```bash
-# Убить процесс на порту 8000
-lsof -i :8000
-kill -9 <PID>
-
-# Или остановить контейнеры
-docker compose down
+docker compose logs api --tail=50
 ```
 
-### Ошибка подключения к БД
+### Ошибка подключения к БД / колонка не существует
 
+Скорее всего не применены миграции:
 ```bash
-# Проверить логи БД
-docker compose logs db
+docker compose exec api alembic upgrade head
+```
 
-# Пересоздать БД
+Если ошибка `DuplicateTable` — пересоздайте базу (только для локалки!):
+```bash
 docker compose down -v
 docker compose up -d
+docker compose exec api alembic upgrade head
+```
+
+### Фронтенд не видит API
+
+Проверьте что контейнеры в одной сети:
+```bash
+docker network ls | grep books
+docker compose ps
 ```
 
 ### Docker daemon не запущен (Mac)
@@ -347,28 +376,38 @@ docker compose up -d
 
 ## 📚 Где что находится
 
+### Локально (docker-compose.override.yml)
+
 | Что? | Где? | Порт |
 |------|------|------|
 | Фронтенд (React) | http://localhost:3000 | 3000 |
 | API (FastAPI) | http://localhost:8000 | 8000 |
 | Swagger docs | http://localhost:8000/docs | 8000 |
-| База данных (PostgreSQL) | localhost:5432 | 5432 |
+| База данных (PostgreSQL) | localhost:5434 | 5434 |
 
+### На сервере (прод)
 
-## Локальная разработка 
+| Что? | Где? |
+|------|------|
+| Фронтенд (React) | https://books.bogatyrevata.com |
+| API | https://books.bogatyrevata.com/api/ |
+| Swagger docs | https://books.bogatyrevata.com/api/docs |
 
+---
+
+## 💻 Локальная разработка (без Docker)
+
+```bash
 # ТЕРМИНАЛ 1 — БД (один раз, оставляете работать)
 cd books-parser-api
 docker compose up -d db
-
-docker ps # должна быть books-db
 
 # ТЕРМИНАЛ 2 — API (локально)
 cd books-parser-api
 source .venv/bin/activate
 uvicorn api.api:app --reload
 
-# ТЕРМИНАЛ 3 — Парсер (если нужно парсить)
+# ТЕРМИНАЛ 3 — Парсер (если нужно парсить вручную)
 cd books-parser-api
 source .venv/bin/activate
 python -m parser.main
@@ -378,5 +417,6 @@ cd books-frontend
 npm run dev
 
 # БРАУЗЕР:
-# http://localhost:5173 — приложение
-# http://localhost:8000/docs — API
+# http://localhost:5173 — приложение (vite проксирует /api/* на localhost:8000)
+# http://localhost:8000/docs — API docs
+```

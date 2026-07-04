@@ -1,22 +1,33 @@
-# Базовый образ — Python 3.11 slim (лёгкий)
 FROM python:3.11-slim
 
-# Рабочая папка внутри контейнера
 WORKDIR /app
 
-# Сначала копируем только requirements — чтобы Docker кешировал слой
-COPY requirements.txt .
+# системные зависимости для Chromium (как в Dockerfile.parser)
+RUN apt-get update && apt-get install -y \
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libxkbcommon0 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем зависимости
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем весь код
+# устанавливаем только chromium
+RUN playwright install chromium
+
 COPY . .
 
-# Открываем порт
 EXPOSE 8000
 
-# Команда запуска
-CMD ["uvicorn", "api.api:app", "--host", "0.0.0.0", "--port", "8000"]
-
-
+CMD ["uvicorn", "api.api:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "debug"]

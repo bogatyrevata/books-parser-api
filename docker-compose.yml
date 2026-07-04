@@ -6,16 +6,16 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./logs/db:/var/log/postgresql  # логи PostgreSQL
+      - ./logs/db:/var/log/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - books-network
 
   api:
     build:
@@ -27,25 +27,25 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: 5432
-    ports:
-      - "8000:8000"
     volumes:
-      - ./logs/api:/app/logs  # логи uvicorn и fastapi
+      - ./logs/api:/app/logs
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - books-network
 
   frontend:
     build:
       context: ../books-frontend
       dockerfile: Dockerfile
     container_name: books-frontend
-    ports:
-      - "3000:80"
     volumes:
-      - ./logs/nginx:/var/log/nginx  # логи nginx
+      - ./logs/nginx:/var/log/nginx
     depends_on:
       - api
+    networks:
+      - books-network
 
   parser:
     build:
@@ -58,13 +58,19 @@ services:
       DB_HOST: db
       DB_PORT: 5432
     volumes:
-      - ./logs/parser:/app/logs  # логи playwright и парсера
+      - ./logs/parser:/app/logs
     depends_on:
       db:
         condition: service_healthy
     profiles:
       - parser
-    restart: "no"  # не перезапускать парсер автоматически
+    restart: "no"
+    networks:
+      - books-network
 
 volumes:
   postgres_data:
+
+networks:
+  books-network:
+    name: books-network

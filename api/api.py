@@ -22,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(categories_router)
-app.include_router(books_router)
-app.include_router(auth_router) 
-app.include_router(parser_router) 
+app.include_router(categories_router, prefix="/api")
+app.include_router(books_router, prefix="/api")
+app.include_router(auth_router, prefix="/api") 
+app.include_router(parser_router, prefix="/api") 
