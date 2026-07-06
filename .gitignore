@@ -29,3 +29,6 @@ test.db
 
 # Файл миграций Alembic
 migrations/versions/" >> .gitignore
+
+# Докер файл для локальной разработки
+docker-compose.override.yml
