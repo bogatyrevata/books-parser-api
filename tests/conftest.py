@@ -36,12 +36,12 @@ def client():
 
 @pytest.fixture
 def admin_client(client):
-    client.post("/auth/register", json={
+    client.post("/api/auth/register", json={
         "username": "admin",
         "email": "admin@test.com",
         "password": "12345"
     })
-    response = client.post("/auth/login", data={
+    response = client.post("/api/auth/login", data={
         "username": "admin",
         "password": "12345"
     })
