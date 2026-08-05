@@ -1,12 +1,20 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from database import User, RefreshToken
-from api.dependencies import get_db
-from api.schemas import UserCreate, UserSchema, TokenSchema
-from api.auth import hash_password, verify_password, create_access_token, get_current_user, create_refresh_token
 from fastapi.security import OAuth2PasswordRequestForm
-from datetime import datetime
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.auth import (
+    create_access_token,
+    create_refresh_token,
+    get_current_user,
+    hash_password,
+    verify_password,
+)
+from api.dependencies import get_db
+from api.schemas import TokenSchema, UserCreate, UserSchema
+from database import RefreshToken, User
 
 auth_router = APIRouter(
     prefix="/auth",
@@ -56,7 +64,7 @@ async def refresh(refresh_token: str, db: AsyncSession = Depends(get_db)):
     if not token_obj:
         raise HTTPException(status_code=401, detail="Невалидный refresh токен")
 
-    if token_obj.expires_at < datetime.utcnow():
+    if token_obj.expires_at < datetime.now(timezone.utc):
         await db.delete(token_obj)
         await db.commit()
         raise HTTPException(status_code=401, detail="Refresh токен истёк")

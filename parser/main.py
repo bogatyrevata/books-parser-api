@@ -1,14 +1,14 @@
 import asyncio
 import os
-import csv
-from dotenv import load_dotenv
 from urllib.parse import urljoin
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from sqlalchemy import select
-from database import Book, Category, Base, get_engine
+
+from dotenv import load_dotenv
 from loguru import logger
 from playwright.async_api import async_playwright
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from database import Base, Book, Category, get_engine
 
 logger.add("logs/parser/parser.log", 
            rotation="1 MB",       # новый файл когда вырастет до 1MB
@@ -78,7 +78,7 @@ async def parse_books_by_category(page, category_url: str, limit: int) -> list[d
                 logger.info(f"{len(all_books)}. {title} | {price} | {rating}")
                 await asyncio.sleep(0.5)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — цикл парсинга не должен падать целиком из-за одной страницы, логируем и прерываем
             logger.error(f"Ошибка при парсинге {url}: {e}")
             break
 
@@ -143,7 +143,7 @@ async def save_books(books: list[dict], category_id: int, db: AsyncSession) -> N
 
 
 async def main():
-    LIMIT_BOOKS = int(os.getenv("LIMIT_BOOKS", 10))
+    LIMIT_BOOKS = int(os.getenv("LIMIT_BOOKS", "10"))
 
     engine = get_engine()
     async with engine.begin() as conn:
@@ -161,7 +161,7 @@ async def main():
         logger.info(f"Найдено категорий: {len(categories)}")
 
         async with AsyncSessionLocal() as db:
-            saved_categories = await save_categories(categories, db)
+            await save_categories(categories, db)
 
         # шаг 2 — парсим книги по первой категории (или по CATEGORY_URL из .env)
         category_url = os.getenv("CATEGORY_URL", categories[0]['url'] if categories else None)

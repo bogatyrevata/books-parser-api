@@ -1,9 +1,12 @@
-from src.utils import parse_price, parse_rating, parse_in_stock
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from database import Book, Base
+
+from database import Base, Book
+from src.utils import parse_in_stock, parse_price, parse_rating
+
 
 # Тесты для утилит парсинга данных о книгах
 @pytest.mark.parametrize("raw, expected", [
@@ -20,8 +23,8 @@ class TestParsePrice:
 class TestParseRating:
     """Проверяем конвертацию текстового рейтинга в число."""
  
-    RATING_MAP = {"One": 1, "Two": 2, "Three": 3, "Four": 4, "Five": 5}
- 
+    RATING_MAP = {"One": 1, "Two": 2, "Three": 3, "Four": 4, "Five": 5}  # noqa: RUF012 — тестовые данные, мутация не ожидается 
+    
     def test_one(self):
         assert parse_rating("star-rating One", self.RATING_MAP) == 1
  
@@ -158,7 +161,7 @@ class TestPlaywrightMock:
     который ведёт себя как карточка книги на странице.
     """
  
-    RATING_MAP = {"One": 1, "Two": 2, "Three": 3, "Four": 4, "Five": 5}
+    RATING_MAP = {"One": 1, "Two": 2, "Three": 3, "Four": 4, "Five": 5}  # noqa: RUF012 — см. комментарий выше
  
     def _make_book_card(self, title, href, price_text, stock_text, rating_class):
         """Создаёт фейковую карточку книги (article.product_pod)."""

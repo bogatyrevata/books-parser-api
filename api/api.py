@@ -1,12 +1,13 @@
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from fastapi import FastAPI
-
 from fastapi.middleware.cors import CORSMiddleware
-from api.routers.categories import categories_router
-from api.routers.books import books_router
+
 from api.routers.auth import auth_router
+from api.routers.books import books_router
+from api.routers.categories import categories_router
 from api.routers.parser import parser_router
 
 app = FastAPI(title="Books API")

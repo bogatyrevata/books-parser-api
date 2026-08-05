@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload, joinedload
-from database import Book, User
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
+
+from api.auth import get_admin_user, get_current_user
 from api.dependencies import get_db
-from api.schemas import BookSchema, BookCreate, BookUpdate
-from api.auth import get_current_user, get_admin_user
+from api.schemas import BookCreate, BookSchema, BookUpdate
+from database import Book, User
 
 # Роуты для работы с книгами
 books_router = APIRouter(
@@ -80,4 +81,3 @@ async def delete_book(book_id: int, db: AsyncSession = Depends(get_db), current_
         raise HTTPException(status_code=404, detail="Book not found")
     await db.delete(book)
     await db.commit()
-    return None

@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from database import Category, Book, get_engine
-from api.dependencies import get_db
-from api.auth import get_admin_user
-from api.schemas import CategorySchema
-from sqlalchemy.ext.asyncio import async_sessionmaker
-import asyncio
 import os
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from api.auth import get_admin_user
+from api.dependencies import get_db
+from api.schemas import CategorySchema
+from database import Category, get_engine
 
 parser_router = APIRouter(
     prefix="/parser",
@@ -17,8 +17,9 @@ parser_router = APIRouter(
 
 async def run_category_parser() -> list[dict]:
     """Запускает парсер категорий и возвращает список категорий"""
-    from parser.main import parse_categories, save_categories
     from playwright.async_api import async_playwright
+
+    from parser.main import parse_categories, save_categories
 
     engine = get_engine()
     AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
@@ -36,10 +37,11 @@ async def run_category_parser() -> list[dict]:
 
 async def run_books_parser(category_url: str, category_id: int) -> dict:
     """Запускает парсер книг по категории"""
-    from parser.main import parse_books_by_category, save_books
     from playwright.async_api import async_playwright
 
-    LIMIT_BOOKS = int(os.getenv("LIMIT_BOOKS", 10))
+    from parser.main import parse_books_by_category, save_books
+
+    LIMIT_BOOKS = int(os.getenv("LIMIT_BOOKS", "10"))
     engine = get_engine()
     AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
 
@@ -61,7 +63,7 @@ async def parse_categories_route(current_user=Depends(get_admin_user)):
     try:
         categories = await run_category_parser()
         return categories
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — парсер может упасть по многим причинам (Playwright, сеть, БД), отдаём как есть в HTTP-ответе
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -80,13 +82,13 @@ async def parse_books_route(category_id: int, db: AsyncSession = Depends(get_db)
     try:
         result = await run_books_parser(category.url, category_id)
         return {"message": f"Спарсено книг: {result['parsed']}", "category": category.name}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — см. комментарий выше
         raise HTTPException(status_code=500, detail=str(e))
     
 
 @parser_router.get("/settings")
 async def get_settings(current_user=Depends(get_admin_user)):
-    return {"limit_books": int(os.getenv("LIMIT_BOOKS", 10))}
+    return {"limit_books": int(os.getenv("LIMIT_BOOKS", "10"))}
 
 
 @parser_router.post("/settings")

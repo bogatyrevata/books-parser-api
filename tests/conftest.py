@@ -1,11 +1,11 @@
 # tests/conftest.py
 import pytest
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from fastapi.testclient import TestClient
-from database import Base
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
 from api.api import app
 from api.dependencies import get_db
+from database import Base
 
 TEST_DB = "test.db"
 
